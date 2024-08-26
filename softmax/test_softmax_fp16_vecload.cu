@@ -131,7 +131,6 @@ __global__ void softmax_block_level(void* src, void* dst, int row, int col){
     int blockid = blockIdx.y * gridDim.x + blockIdx.x;
     int gtid =  blockid * (blockDim.x * blockDim.y) + tid; 
 
-    int total_step = gridDim.x * blockDim.x;
     int block_step = blockDim.x * blockDim.y;
 
     int row_id = blockid;
