@@ -295,21 +295,26 @@ __global__ void softmax_warp_level_vec(void* src, void* dst, int row, int col) {
 void run_test_performance(int rows, int cols){
     float start_time_v1 = 0,start_time_v2 = 0,start_time_v3 = 0,start_time_v4 = 0;
     std::vector<float> input_data(rows * cols, 1);
+    std::vector<half> input_data_fp16(rows * cols*2, 1);
     std::vector<float> output_data_cpu(rows * cols, 0);
     std::vector<float> output_data_gpu(rows * cols, 0);
+    std::vector<half> output_data_gpu_fp16(rows * cols*2, 0);
 
     softmax_cpu<float>(input_data.data(), output_data_cpu.data(), rows, cols);
 
     dim3 blocks(128, 1024/128); // 每个 block 有 1024 个线程，处理一行数据
     dim3 grids(256, (rows/256 + 31) /32 *32);   // 1000 行数据，每行一个 block
-    void* d_input_data, *d_output_data;
+    void* d_input_data, *d_output_data, *d_input_data_fp16, *d_output_data_fp16;
     cudaMalloc((void**)&d_input_data, rows*cols*sizeof(float));
     cudaMalloc((void**)&d_output_data, rows*cols*sizeof(float));
+    cudaMalloc((void**)&d_input_data_fp16, rows*cols*2*sizeof(half));
+    cudaMalloc((void**)&d_output_data_fp16, rows*cols*2*sizeof(half));
     cudaMemcpy(d_input_data, input_data.data(),rows*cols*sizeof(float),cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input_data_fp16, input_data_fp16.data(),rows*cols*2*sizeof(half),cudaMemcpyHostToDevice);
 
     // Warmup run to fill caches and avoid initial overhead
     softmax_block_level<float><<<grids, blocks>>>(d_input_data, d_output_data, rows, cols);
-    softmax_block_level_fp16<float><<<grids, blocks>>>(d_input_data, d_output_data, rows, cols);
+    softmax_block_level_fp16<half><<<grids, blocks>>>(d_input_data_fp16, d_output_data_fp16, rows, cols);
     softmax_warp_level<float><<<grids, blocks>>>(d_input_data, d_output_data, rows, cols);
     softmax_warp_level_vec<float><<<grids, blocks>>>(d_input_data, d_output_data, rows, cols);
     cudaDeviceSynchronize();
@@ -325,7 +330,7 @@ void run_test_performance(int rows, int cols){
     cudaEventElapsedTime(&start_time_v1, start, stop);
     
     cudaEventRecord(start);
-    softmax_block_level_fp16<float><<<grids, blocks>>>(d_input_data, d_output_data, rows, cols);
+    softmax_block_level_fp16<half><<<grids, blocks>>>(d_input_data_fp16, d_output_data_fp16, rows, cols*2);
     cudaDeviceSynchronize();
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -348,11 +353,14 @@ void run_test_performance(int rows, int cols){
 
     
     cudaMemcpy(output_data_gpu.data(),d_output_data, rows*cols*sizeof(float),cudaMemcpyDeviceToHost);
+    cudaMemcpy(output_data_gpu_fp16.data(),d_output_data_fp16, rows*cols*2*sizeof(half),cudaMemcpyDeviceToHost);
 
     cudaDeviceSynchronize();
 
     cudaFree(d_input_data);
     cudaFree(d_output_data);
+    cudaFree(d_input_data_fp16);
+    cudaFree(d_output_data_fp16);
 
 
     std::cout << "Rows: " << rows << ", Cols: " << cols << std::endl;
