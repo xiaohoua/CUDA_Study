@@ -325,33 +325,6 @@ int main() {
         }
     }
     
-    
-
-    
-    
-    // Check if CPU and GPU results are the same
-    // bool success = true;
-    // for (int i = 0; i < rows * cols; i++) {
-    //     if (fabs(output_data_cpu[i] - output_data_gpu[i]) > 1e-5) {
-    //         success = false;
-    //         printf(" i =%d, output_data_cpu = %f, output_data_npu = %f\n", i, output_data_cpu[i], output_data_gpu[i]);
-    //         break;
-    //     }
-    // }
-
-    // if(success) {
-    //     printf("the ans is right\n");
-    // } else {
-    //     printf("the ans is wrong\n");
-    //     for(int i=0;i<10;i++){
-    //         printf("%lf ",output_data_gpu[i]);
-    //     }
-    //     printf("\n");
-    //     for(int i=0;i<10;i++){
-    //         printf("%lf ",output_data_cpu[i]);
-    //     }
-    //     printf("\n");
-    // }
 
     
     return 0;

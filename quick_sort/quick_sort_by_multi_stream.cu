@@ -1,6 +1,9 @@
 #include<cuda_runtime.h>
 #include<iostream>
 #include <random>
+
+#define INSERTION_SORT 32
+#define MAX_DEPTH 16
 template<typename T>
 int partition(T* data, int low, int high){
     int mid = low + (high - low) / 2;
@@ -32,63 +35,71 @@ void quick_sort_cpu(T* data, int low, int high){
 }
 
 template<typename T>
-__device__ void swap(T* a, T* b){
+__device__ void swap(T* a, T* b) {
     T temp = *a;
     *a = *b;
     *b = temp;
 }
+
 template<typename T>
-__device__ int partition_gpu(T* data, int low, int high){
+__device__ int partition_gpu(T* data, int low, int high) {
     T pivot = data[low];
-    while (low < high)
-    {
-        while(data[high] >= pivot && low<high){
-            high--;
+    int i = low;
+    int j = high;
+
+    while (true) {
+        while (data[i] < pivot) {
+            i++;
         }
-        data[low] = data[high];
-        while(data[low] <= pivot && low<high){
-            low++;
+        while (data[j] > pivot) {
+            j--;
         }
-        data[high] = data[low];
+        if (i >= j) {
+            return j;
+        }
+        swap(&data[i], &data[j]);
+        i++;
+        j--;
     }
-    
-    data[low] = pivot;
-    return low;
 }
-#define STACK_SIZE 100
 template<typename T>
-__global__ void quick_sort_gpu(T* src, int low, int high){
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    __shared__ int stack[STACK_SIZE];
-    __shared__ int top;
-    if(threadIdx.x == 0){
-        top = -1;
-    }
+__device__ void selection_sort(T *data, int low, int high){
+    for(int i=low; i<high; ++i){
+        T min = data[i];
+        int min_index = i;
+        for(int j=i+1; j<=high; ++j){
 
-    while (true)
-    {
-        while (low < high)
-        {
-            int pivot_index = partition_gpu(src, low, high);
-            if(pivot_index+1 < high){
-                //先top++再存储
-                stack[++top] = pivot_index + 1;
-                __syncthreads();
-                stack[++top] = high;
-                __syncthreads();
+            if(data[j] < min){
+                min_index = j;
+                min = data[j];
             }
-            high = pivot_index - 1;
         }
-        
-        if(top == -1) break;
-
-        //先赋值再--
-        high = stack[top--];
-        __syncthreads();
-        low = stack[top--];
-        __syncthreads();
+        if(low != min_index) {
+            data[min_index] = data[i];
+            data[i] = min;
+        };
     }
-    
+}
+
+template<typename T>
+__global__ void quick_sort_gpu(T* data, int low, int high, int depth) {
+    if (low < high) {
+        if(depth >= MAX_DEPTH || high - low <=INSERTION_SORT) {
+            selection_sort(data, low, high);
+            return;
+        }
+        int pi = partition_gpu(data, low, high);
+
+        cudaStream_t left_stream, right_stream;
+        cudaStreamCreateWithFlags(&left_stream, cudaStreamNonBlocking);
+        // Launch new kernels for the two partitions
+        quick_sort_gpu<<<1, 1, 0 ,left_stream>>>(data, low, pi, depth+1);
+        cudaStreamDestroy(left_stream);
+        cudaStreamCreateWithFlags(&right_stream, cudaStreamNonBlocking);
+        quick_sort_gpu<<<1, 1, 0,right_stream>>>(data, pi + 1, high, depth+1);
+        cudaStreamDestroy(right_stream);
+
+    }
 }
 
 
@@ -111,20 +122,21 @@ int main() {
     cudaMemcpy(device_data, output_data_cpu, size * sizeof(int), cudaMemcpyHostToDevice);
 
     // Sort on CPU
-    quick_sort_cpu(output_data_cpu, 0, size - 1);
+    quick_sort_cpu(output_data_cpu, 0, size);
 
     // Sort on GPU
     int blockSize = 256;
     int numBlocks = (size + blockSize - 1) / blockSize;
-
     //warmup
-    quick_sort_gpu<<<1, 1>>>(device_data, 0, size - 1);
+    // quick_sort_gpu<<<1, 1>>>(device_data, 0, size - 1, 0);
+    // cudaDeviceSynchronize();
     float millionseconds;
     cudaEvent_t start, end;
     cudaEventCreate(&start);
     cudaEventCreate(&end);
     cudaEventRecord(start);
-    quick_sort_gpu<<<1, 1>>>(device_data, 0, size - 1);
+    quick_sort_gpu<<<1, 1>>>(device_data, 0, size, 0);
+    cudaDeviceSynchronize();
     cudaEventRecord(end);
     cudaEventSynchronize(end);
     cudaEventElapsedTime(&millionseconds,start,end);
