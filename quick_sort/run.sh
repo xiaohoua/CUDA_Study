@@ -8,6 +8,8 @@ fi
 
 SIZE=$1
 
+# 打印 size 参数
+echo "Size parameter passed: $SIZE"
 # 编译 CUDA 代码
 
 nvcc quick_sort_by_single_thread.cu -o quick_sort_by_single_thread  # 替换为你的文件名
