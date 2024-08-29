@@ -1,6 +1,7 @@
 #include<cuda_runtime.h>
 #include<iostream>
 #include <random>
+#include <cstdlib> // for atoi
 
 #define INSERTION_SORT 32
 #define MAX_DEPTH 16
@@ -103,8 +104,13 @@ __global__ void quick_sort_gpu(T* data, int low, int high, int depth) {
 }
 
 
-int main() {
-     const int size = 10000;
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <size>" << std::endl;
+        return 1;
+    }
+
+    const int size = std::atoi(argv[1]); // Convert the argument to an integer
     int *output_data_cpu = new int[size];
     int *output_data_gpu = new int[size];
     int* device_data;
@@ -128,8 +134,8 @@ int main() {
     int blockSize = 256;
     int numBlocks = (size + blockSize - 1) / blockSize;
     //warmup
-    // quick_sort_gpu<<<1, 1>>>(device_data, 0, size - 1, 0);
-    // cudaDeviceSynchronize();
+    quick_sort_gpu<<<1, 1>>>(device_data, 0, 1, 0);
+    cudaDeviceSynchronize();
     float millionseconds;
     cudaEvent_t start, end;
     cudaEventCreate(&start);
@@ -141,7 +147,7 @@ int main() {
     cudaEventSynchronize(end);
     cudaEventElapsedTime(&millionseconds,start,end);
     cudaDeviceSynchronize();
-    printf("Elapsed Time: %f\n", millionseconds);
+    printf("quick_sort_by_multi_stream Elapsed Time: %f\n", millionseconds);
 
     // Copy sorted data back from device
     cudaMemcpy(output_data_gpu, device_data, size * sizeof(int), cudaMemcpyDeviceToHost);

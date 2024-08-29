@@ -1,6 +1,8 @@
 #include<cuda_runtime.h>
 #include<iostream>
 #include <random>
+#include <cstdlib> // for atoi
+
 template<typename T>
 int partition(T* data, int low, int high){
     int mid = low + (high - low) / 2;
@@ -92,8 +94,13 @@ __global__ void quick_sort_gpu(T* src, int low, int high){
 }
 
 
-int main() {
-     const int size = 10000;
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <size>" << std::endl;
+        return 1;
+    }
+    const int size = std::atoi(argv[1]); 
+    
     int *output_data_cpu = new int[size];
     int *output_data_gpu = new int[size];
     int* device_data;
@@ -118,7 +125,8 @@ int main() {
     int numBlocks = (size + blockSize - 1) / blockSize;
 
     //warmup
-    quick_sort_gpu<<<1, 1>>>(device_data, 0, size - 1);
+    quick_sort_gpu<<<1, 1>>>(device_data, 0, 1);
+    cudaDeviceSynchronize();
     float millionseconds;
     cudaEvent_t start, end;
     cudaEventCreate(&start);
@@ -129,7 +137,7 @@ int main() {
     cudaEventSynchronize(end);
     cudaEventElapsedTime(&millionseconds,start,end);
     cudaDeviceSynchronize();
-    printf("Elapsed Time: %f\n", millionseconds);
+    printf("quick_sort_by_single_thread Elapsed Time: %f\n", millionseconds);
 
     // Copy sorted data back from device
     cudaMemcpy(output_data_gpu, device_data, size * sizeof(int), cudaMemcpyDeviceToHost);
