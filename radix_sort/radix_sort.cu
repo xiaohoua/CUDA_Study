@@ -53,7 +53,13 @@ __global__ void RadixSort_gpu(float* val, unsigned int* sort_tmp0, unsigned int*
     for(unsigned int i=0; i<N; i++){
         
         unsigned int x = (list_index[tid] * blockDim.x + tid);
-        elem = sort_tmp0[x];
+        // elem = sort_tmp0[x];
+        if(x < N) {
+            elem = sort_tmp0[x];
+        }
+        else {
+            elem = 0xffffffff;
+        }
 
         __syncthreads();
         min_val = min_tid = 0xffffffff;
